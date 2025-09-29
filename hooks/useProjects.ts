@@ -30,7 +30,7 @@ export const useProjects = () => {
       if (!response.ok) throw new Error("Failed to fetch projects")
 
       const data = await response.json()
-      setProjects(data.projects || [])
+      setProjects(data.items || [])
     } catch (error) {
       console.error("Error fetching projects:", error)
       toast({
@@ -75,7 +75,7 @@ export const useProjects = () => {
       if (!response.ok) throw new Error("Failed to create project")
 
       const data = await response.json()
-      const newProject = data.project
+      const newProject = data.item
 
       setProjects((prev) => [newProject, ...prev])
 

@@ -44,7 +44,7 @@ export const useSprints = () => {
       if (!response.ok) throw new Error("Failed to fetch sprints")
 
       const data = await response.json()
-      setSprints(data.sprints || [])
+      setSprints(data.items || [])
     } catch (error) {
       console.error("Error fetching sprints:", error)
       toast({
@@ -74,16 +74,19 @@ export const useSprints = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...sprintData,
-          startTime: startTime.toISOString(),
-          endTime: now.toISOString(),
+          projectId: sprintData.projectId,
+          durationSec: sprintData.duration,
+          startedAt: startTime.toISOString(),
+          completedAt: now.toISOString(),
+          mode: sprintData.timerMode,
+          notes: sprintData.notes,
         }),
       })
 
       if (!response.ok) throw new Error("Failed to create sprint")
 
       const data = await response.json()
-      const newSprint = data.sprint
+      const newSprint = data.item
 
       setSprints((prev) => [newSprint, ...prev])
 

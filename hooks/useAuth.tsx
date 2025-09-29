@@ -1,6 +1,12 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react"
 
 export interface User {
   id: string
@@ -10,8 +16,14 @@ export interface User {
 export interface AuthContextType {
   user: User | null
   loading: boolean
-  signUp: (email: string, password: string) => Promise<{ error?: { message: string } }>
-  signIn: (email: string, password: string) => Promise<{ error?: { message: string } }>
+  signUp: (
+    email: string,
+    password: string
+  ) => Promise<{ error?: { message: string } }>
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ error?: { message: string } }>
   signOut: () => Promise<void>
 }
 
@@ -22,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for existing session on mount
     fetch("/api/auth/session")
       .then((res) => res.json())
       .then((data) => {
@@ -43,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       })
 
       const data = await response.json()
@@ -63,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch("/api/auth/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       })
 
       const data = await response.json()
@@ -72,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: { message: data.error || "Sign in failed" } }
       }
 
+      setUser(data.user)
       return {}
     } catch (error) {
       return { error: { message: "Network error" } }

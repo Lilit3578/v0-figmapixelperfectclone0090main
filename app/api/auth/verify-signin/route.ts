@@ -1,34 +1,34 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { verifySignIn } from "@/lib/auth"
 import { cookies } from "next/headers"
+import { NextResponse } from "next/server"
+import { getDb } from "@/lib/db"
+import { z } from "zod"
+import { createHash } from "crypto"
+import { createSessionCookie } from "@/lib/session"
 
-export async function POST(request: NextRequest) {
+const VerifySchema = z.object({ email: z.string().email(), code: z.string().regex(/^\d{6}$/) })
+
+export async function POST(request: Request) {
   try {
-    const { email, code } = await request.json()
+    const { email, code } = VerifySchema.parse(await request.json())
+    const db = await getDb()
+    const rec = await db.collection("email_tokens").findOne({ email })
+    if (!rec || rec.expiresAt < new Date()) return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 })
 
-    if (!email || !code) {
-      return NextResponse.json({ error: "Email and code are required" }, { status: 400 })
-    }
+    const token = createHash("sha256").update(`${email}:${code}`).digest("base64url")
+    if (token !== rec.token) return NextResponse.json({ error: "Invalid code" }, { status: 400 })
 
-    const result = await verifySignIn(email, code)
+    const user = await db.collection("users").findOneAndUpdate(
+      { email },
+      { $setOnInsert: { email, createdAt: new Date() }, $set: { lastLoginAt: new Date() } },
+      { upsert: true, returnDocument: "after" }
+    )
 
-    if (result.success && result.session) {
-      // Set session cookie
-      const cookieStore = await cookies()
-      cookieStore.set("session-token", result.session.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        expires: result.session.expires,
-      })
+    await db.collection("email_tokens").deleteOne({ email })
 
-      return NextResponse.json({
-        success: true,
-        user: result.session.user,
-      })
-    } else {
-      return NextResponse.json({ success: false, error: result.error }, { status: 400 })
-    }
+    const cookie = await createSessionCookie({ userId: String(user.value!._id) })
+    cookies().set(cookie.name, cookie.value, cookie.options)
+
+    return NextResponse.json({ ok: true, user: { id: String(user.value!._id), email } })
   } catch (error) {
     console.error("Verify sign in error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
