@@ -1,92 +1,79 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
-import { Project } from './useProjects';
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "./useAuth"
+import type { Project } from "./useProjects"
 
 interface UserProfile {
-  id: string;
-  user_id: string;
-  last_used_project_id?: string;
-  created_at: string;
-  updated_at: string;
+  id: string
+  user_id: string
+  last_used_project_id?: string
+  created_at: string
+  updated_at: string
 }
 
 export const useUserProfile = () => {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
 
   const fetchProfile = async () => {
     if (!user) {
-      setProfile(null);
-      setLoading(false);
-      return;
+      setProfile(null)
+      setLoading(false)
+      return
     }
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const token = localStorage.getItem("auth_token")
+      const response = await fetch("/api/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
 
-      if (error) throw error;
-      setProfile(data);
+      if (!response.ok) throw new Error("Failed to fetch profile")
+
+      const data = await response.json()
+      setProfile(data.profile)
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error("Error fetching profile:", error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    fetchProfile();
-
-    // Set up real-time subscription for profile
-    if (user) {
-      const channel = supabase
-        .channel('profile_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'profiles',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-              setProfile(payload.new as UserProfile);
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [user]);
+    fetchProfile()
+  }, [user])
 
   const updateLastUsedProject = async (project: Project | null) => {
-    if (!user || !profile) return;
+    if (!user) return
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ last_used_project_id: project?.id || null })
-        .eq('user_id', user.id);
+      const token = localStorage.getItem("auth_token")
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          last_used_project_id: project?.id || null,
+        }),
+      })
 
-      if (error) throw error;
+      if (!response.ok) throw new Error("Failed to update profile")
+
+      const data = await response.json()
+      setProfile(data.profile)
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error("Error updating profile:", error)
     }
-  };
+  }
 
   return {
     profile,
     loading,
     updateLastUsedProject,
     refetch: fetchProfile,
-  };
-};
+  }
+}
